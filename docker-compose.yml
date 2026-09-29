@@ -1,0 +1,42 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: points-ledger:latest
+    environment:
+      LEDGER_DB: /data/ledger.db
+      ADMIN_KEY: admin-secret
+    ports:
+      - "8000:8000"
+    volumes:
+      - ledger-data:/data
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).status==200 else 1)"
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  verify:
+    build:
+      context: .
+      dockerfile: Dockerfile.verify
+    image: points-ledger-verify:latest
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      VERIFY_BASE_URL: http://api:8000
+      ADMIN_KEY: admin-secret
+      LEDGER_DB: /data/ledger.db
+    volumes:
+      - ledger-data:/data
+    command: ["pytest", "-v", "--tb=short", "tests"]
+
+volumes:
+  ledger-data:
